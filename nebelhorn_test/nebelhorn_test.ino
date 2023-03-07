@@ -122,15 +122,15 @@ static void checkState(void *pvParameters ){
   if(ledMutex == NULL){
     Serial.println("could not create semaphore");
   }
-  Serial.printf("created mutex: %i\n",ledMutex);
+
   while(true){
     signalState=getInputState();
     if(validState(signalState)){
       if(signalState!=oldState){
-        //Serial.println("got new state");
         Serial.printf("\noldState: %i, signalState: %i\n",oldState,signalState);
-        //Serial.printf("oldState: %i, signalState: %i\n",oldState,signalState);
-        stopSignal(oldState);
+        if(validState(oldState)){
+          stopSignal(oldState);
+        }
         startSignal(signalState);
         setLEDs(signalState);
         oldState=signalState;
@@ -248,9 +248,7 @@ void hornOn(){
   digitalWrite(CHAN_A, HIGH);
   digitalWrite(CHAN_B, HIGH);
   setLED(0, CRGB::Yellow);
-  //leds[0]=CRGB::Yellow;
   showLED();
-  //FastLED.show();
 }
 
 void hornOff(){
@@ -310,7 +308,13 @@ void startSignal(uint8_t state){
 void stopSignal(uint8_t state){
   printDebugTag();
   Serial.printf("Stopping Signal for state %i", state);
-  switch(state){
+  vTaskDelete(signalTaskHandle[state]);
+  hornOff();
+
+  // since this is now only called with valid state info, 
+  // there's no need to distinguish states anymore  
+  /*
+    switch(state){
     case 1:
       vTaskDelete(signalTaskHandle[state]);
       hornOff();
@@ -330,6 +334,7 @@ void stopSignal(uint8_t state){
     default:
       break;
   }
+  */
 }
 
 static void state1Signal(void *pvParameters ){
@@ -345,13 +350,16 @@ static void state1Signal(void *pvParameters ){
   while(true){
     hornLong();
     hornPause();
-    hornLong();
-    hornPause();
     Serial.println("two minute pause");
-    vTaskDelay(2*MINUTE-SIG_LONG-SIG_SHORT);
+    vTaskDelay(2*MINUTE-SIG_LONG-SIG_PAUSE);
   }
 }
 static void state2Signal(void *pvParameters ){
+  /*
+   * Fog, under sail
+   * long short short
+   * repeat every two minutes
+   */
   printDebugTag();
   Serial.println("fog, sailing signal started");
   vTaskDelay(2*SECOND);
@@ -361,11 +369,18 @@ static void state2Signal(void *pvParameters ){
     hornPause();
     hornShort();    
     hornPause();
-    
-    vTaskDelay(2*MINUTE-SIG_LONG-SIG_SHORT);
+    hornShort();    
+    hornPause();
+
+    vTaskDelay(2*MINUTE-SIG_LONG-2*SIG_SHORT-3*SIG_PAUSE);
   }
 }
 static void state4Signal(void *pvParameters ){
+  /*
+   * Fog, under engine
+   * long long
+   * repeat every two minutes
+   */
   printDebugTag();
   Serial.println("fog drifting signal started");
   vTaskDelay(2*SECOND);
@@ -376,15 +391,20 @@ static void state4Signal(void *pvParameters ){
     hornLong();
     hornPause();
     Serial.println("two minute pause");
-    vTaskDelay(2*MINUTE-2*SIG_LONG-2*SIG_SHORT);
+    vTaskDelay(2*MINUTE-2*SIG_LONG-2*SIG_PAUSE);
   }
 }
 static void state8Signal(void *pvParameters ){
+  /*
+   * Fog, at anchor
+   * short long short
+   * repeat every two minutes
+   */
   printDebugTag();
   Serial.println("fog at anchor signal started");
   vTaskDelay(2*SECOND);
   while(true){
-    hornLong();
+    hornShort();
     hornPause();
 
     hornLong();
@@ -394,7 +414,7 @@ static void state8Signal(void *pvParameters ){
     hornPause();
     
     Serial.println("two minute pause");
-    vTaskDelay(2*MINUTE-SIG_LONG-5*SIG_SHORT);
+    vTaskDelay(2*MINUTE-SIG_LONG-2*SIG_SHORT-SIG_LONG-3*SIG_PAUSE);
   }
 }
 
