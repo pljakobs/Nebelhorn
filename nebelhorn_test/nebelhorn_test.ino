@@ -25,6 +25,8 @@
 //#include <LowPower.h>
 //#include <SerialMenuCmd.h>
 
+#define DEBUG 1
+
 #define FEEDBACK 0
 #define CHAN_A 1
 #define CHAN_B 2
@@ -39,10 +41,10 @@
 #define SIG_SHORT   1*SECOND  // short signal is a second
 #define SIG_LONG    4*SECOND  // long signal is four seconds
 #define SIG_PAUSE   2*SECOND  // Pause
-#define MINUTE      60*SECOND // a minute has 60 million microseconds
+#define MINUTE      60*SECOND // a minute has 60 seconds
 
 #define LED_PIN     10 
-#define NUM_LEDS    50
+#define NUM_LEDS    5
 #define BRIGHTNESS  63
 #define LED_TYPE    WS2811
 #define COLOR_ORDER RGB
@@ -72,6 +74,7 @@ void hornPause(void);
 void hornShort(void);
 void hornLong(void);
 void checkSignal(uint8_t state);
+bool validState(uint8_t state);
 
 void startSignal(uint8_t state);
 void stopSignal(uint8_t state);
@@ -122,15 +125,17 @@ static void checkState(void *pvParameters ){
   Serial.printf("created mutex: %i\n",ledMutex);
   while(true){
     signalState=getInputState();
-    if(signalState!=oldState){
-      //Serial.println("got new state");
-      Serial.printf("\noldState: %i, signalState: %i\n",oldState,signalState);
-      //Serial.printf("oldState: %i, signalState: %i\n",oldState,signalState);
-      stopSignal(oldState);
-      startSignal(signalState);
-      setLEDs(signalState);
-      oldState=signalState;
-      vTaskDelay(100*MILLISECOND);
+    if(validState(signalState)){
+      if(signalState!=oldState){
+        //Serial.println("got new state");
+        Serial.printf("\noldState: %i, signalState: %i\n",oldState,signalState);
+        //Serial.printf("oldState: %i, signalState: %i\n",oldState,signalState);
+        stopSignal(oldState);
+        startSignal(signalState);
+        setLEDs(signalState);
+        oldState=signalState;
+        vTaskDelay(100*MILLISECOND);
+      }
     }
   }
 }
@@ -140,12 +145,12 @@ uint8_t getInputState(){
 }
 
 void setLEDs(uint8_t state){
+  if(validState(state)){
   for(uint8_t i=0;i<4;i++){
-    //state&(1<<i)?leds[i+1]=CRGB::Blue:leds[i+1]=CRGB::Black;
     state&(1<<i)?setLED(i+1,CRGB::Blue):setLED(i+1,CRGB::Black);
   }
   showLED();
-  //FastLED.show();
+  }
 }
 
 void selfTest(){
@@ -422,7 +427,24 @@ void showLED(){
 }
 
 void printDebugTag(){
-  static uint32_t relativeTime;
-  Serial.printf("[%s, %ims (+%ims)]:",pcTaskGetName(xTaskGetCurrentTaskHandle()),millis()-startTime, millis()-relativeTime);
-  relativeTime=millis();
+  #ifdef DEBUG
+    static uint32_t relativeTime;
+    Serial.printf("[%s, %ims (+%ims)]:",pcTaskGetName(xTaskGetCurrentTaskHandle()),millis()-startTime, millis()-relativeTime);
+    relativeTime=millis();
+  #endif
+}
+
+bool validState(uint8_t state){
+  switch(state){
+    case 1:
+    case 2:
+    case 4:
+    case 8:
+      return true;
+      break;
+    default:
+      return false;
+      break;
+  }
+
 }
