@@ -52,9 +52,13 @@
 #define FAIL_CHAN_A 1
 #define FAIL_CHAN_B 2
 
+#define HORN_ON     true
+#define HORN_OFF    false
+
 CRGB leds[NUM_LEDS];
 
 #define UPDATES_PER_SECOND 100
+
 
 TaskHandle_t signalTaskHandle[8];
 TaskHandle_t checkStateTaskHandle;
@@ -63,6 +67,9 @@ TaskHandle_t checkStateTaskHandle;
 uint8_t getInputState(void);
 void setLEDs(uint8_t);
 void selfTest(void);
+bool testForShort(void);
+bool testChannel(uint8_t);
+bool testForSignal(void);
 void failChannelShort(void);
 void initHardware(void);
 void initLEDs(void);
@@ -98,7 +105,7 @@ void setup() {
 
   initHardware();
   initLEDs();
-  delay(2000);
+  //delay(2000);
   Serial.println("starting self test");
 
   selfTest();
@@ -107,8 +114,6 @@ void setup() {
   Serial.println("finished self test, starting Scheduler");
   vTaskStartScheduler();
   Serial.println("started Scheduler");
-  //signalState=getInputState();
- 
 }
 
 void loop() {
@@ -163,13 +168,13 @@ void selfTest(){
   delay(500);
   
   // check for short
-  if(digitalRead(FEEDBACK)){
+  if(testForShort()){
     failChannelShort();
   }
   
   digitalWrite(CHAN_A, true);
   delayMicroseconds(100);
-  if(digitalRead(FEEDBACK)){
+  if(testForSignal()){
     leds[1]=CRGB::Green;
     leds[2]=CRGB::Green;
   }else{
@@ -179,10 +184,12 @@ void selfTest(){
   }
   FastLED.show();
   digitalWrite(CHAN_A, false);
-  delay(1000);
+
+  delay(100);
+
   digitalWrite(CHAN_B, true);
   delayMicroseconds(100);
-  if(digitalRead(FEEDBACK)){
+  if(testForSignal()){
     leds[3]=CRGB::Green;
     leds[4]=CRGB::Green;
   }else{
@@ -192,6 +199,7 @@ void selfTest(){
   }
   FastLED.show();
   digitalWrite(CHAN_B, false);
+
   if(error!=0){
     delay(2000);
   }
@@ -202,14 +210,22 @@ void selfTest(){
   FastLED.show();
 }
 
+bool testForShort(){
+  return(digitalRead(FEEDBACK));
+}
+
+bool testForSignal(){
+  return(digitalRead(FEEDBACK));
+}
+
 void failChannelShort(){
   while(digitalRead(FEEDBACK)){
-    for(uint8_t i=1;i<=4;i++){
+    for(uint8_t i=0;i<=4;i++){
       leds[i]=CRGB::Red;
     }
     FastLED.show();
     delay(250);
-    for(uint8_t i=1;i<=4;i++){
+    for(uint8_t i=0;i<=4;i++){
       leds[i]=CRGB::Black;
     }
     FastLED.show();
@@ -239,10 +255,17 @@ void initLEDs(){
   FastLED.setBrightness(  BRIGHTNESS );
   
   for(uint8_t i=0;i<5;i++){
+    leds[i]=CRGB::Green;
+    delay(100);
+    FastLED.show();
+  }
+  delay(250);
+  for(uint8_t i=0;i<5;i++){
     leds[i]=CRGB::Black;
   }
   FastLED.show();
 }
+
 
 void hornOn(){
   digitalWrite(CHAN_A, HIGH);
@@ -257,9 +280,42 @@ void hornOff(){
   setLED(0, CRGB::Black);
   //leds[0]=CRGB::Black;
   showLED();
-  //FastLED.show();
+  if(testForShort()){
+    failChannelShort();
+  }
 }
 
+
+/*
+void hornOn(){
+  horn(HORN_ON);
+}
+
+void hornOff(){
+  horn(HORN_OFF);
+ }
+
+ void horn(uint8_t hornState){ 
+  static int channels[]={CHAN_A,CHAN_B};
+  static uint8_t channel=0;
+
+  switch(hornState){
+    case HORN_ON:
+      digitalWrite(channels[channel], HIGH);
+      (channel==0)?setLED(0, CRGB::Yellow):setLED(0,CRGB::Green);
+      showLED();
+      break;
+    case HORN_OFF:
+      digitalWrite(channels[channel], LOW);
+      setLED(0, CRGB::Black);
+      showLED();
+      (channel==1)?channel=0:channel=1;
+      break;
+    default:
+      break;
+    }
+ }
+*/
 void hornShort(){
   printDebugTag();
   Serial.println("horn on");
@@ -269,6 +325,7 @@ void hornShort(){
   Serial.println("horn off");
   hornOff();
 }
+
 
 void hornLong(){
   printDebugTag();
